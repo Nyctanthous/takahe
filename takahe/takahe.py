@@ -112,6 +112,7 @@ import re
 import sys
 import bisect
 import networkx as nx
+from networkx.drawing.nx_pydot import write_dot
 #import matplotlib.pyplot as plt
 
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
@@ -598,7 +599,7 @@ class word_graph:
                 self.graph.add_edge(mapping[j-1], mapping[j])
 
         # Assigns a weight to each node in the graph ---------------------------
-        for node1, node2 in self.graph.edges_iter():
+        for node1, node2 in self.graph.edges:
             edge_weight = self.get_edge_weight(node1, node2)
             self.graph.add_edge(node1, node2, weight=edge_weight)
     #-B-----------------------------------------------------------------------B-
@@ -842,7 +843,7 @@ class word_graph:
                         length >= self.nb_words and \
                         paired_parentheses == 0 and \
                         (quotation_mark_number%2) == 0 \
-                        and not sentence_container.has_key(raw_sentence):
+                        and not (raw_sentence in sentence_container):
                         path = [node]
                         path.extend(shortestpath)
                         path.reverse()
@@ -855,7 +856,7 @@ class word_graph:
                 else:
             
                     # test if node has already been visited
-                    if visited.has_key(node):
+                    if node in visited:
                         visited[node] += 1
                     else:
                         visited[node] = 0
@@ -948,14 +949,12 @@ class word_graph:
                 node = token.lower() + self.sep + POS
                 
                 # Add the token to the terms list
-                if not terms.has_key(node):
+                if node not in terms:
                     terms[node] = [i]
                 else:
                     terms[node].append(i)
 
-        # Loop over the terms
         for w in terms:
-
             # Compute the term frequency
             self.term_freq[w] = len(terms[w])
     #-B-----------------------------------------------------------------------B-
@@ -984,7 +983,7 @@ class word_graph:
     #-T-----------------------------------------------------------------------T-
     def write_dot(self, dotfile):
         """ Outputs the word graph in dot format in the specified file. """
-        nx.write_dot(self.graph, dotfile)
+        write_dot(self.graph, dotfile)
     #-B-----------------------------------------------------------------------B-
 
 #~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~-~
@@ -1188,7 +1187,6 @@ class keyphrase_reranker:
 
                 # If a candidate keyphrase is in the buffer
                 elif len(candidate) > 0 and self.is_a_candidate(candidate):
-
                     # Add candidate
                     keyphrase = ' '.join(u[0] for u in candidate)
                     self.keyphrase_candidates[keyphrase] = candidate
@@ -1196,14 +1194,12 @@ class keyphrase_reranker:
                     # Flush the buffer
                     candidate = []
 
-                else:
-                    
+                else:                    
                     # Flush the buffer
                     candidate = []
                
             # Handle the last possible candidate
             if len(candidate) > 0 and self.is_a_candidate(candidate):
-
                 # Add candidate
                 keyphrase = ' '.join(u[0] for u in candidate)
                 self.keyphrase_candidates[keyphrase] = candidate
@@ -1256,14 +1252,14 @@ class keyphrase_reranker:
                 sum_Vj = 0
 
                 # For each node J connected to I
-                for node_j in self.graph.neighbors_iter(node_i):
+                for node_j in self.graph.neighbors(node_i):
 
                     wji = self.graph[node_j][node_i]['weight']
                     WSVj = current_node_scores[node_j]
                     sum_wjk = 0.0
 
                     # For each node K connected to J
-                    for node_k in self.graph.neighbors_iter(node_j):
+                    for node_k in self.graph.neighbors(node_j):
                         sum_wjk += self.graph[node_j][node_k]['weight']
 
                     sum_Vj += ( (wji * WSVj) / sum_wjk )
@@ -1382,7 +1378,7 @@ class keyphrase_reranker:
                 non_redundant_keyphrases.append(keyphrase)
 
         # Modify the keyphrase candidate dictionnaries according to the clusters
-        for keyphrase in self.keyphrase_candidates.keys():
+        for keyphrase in list(self.keyphrase_candidates.keys()):
 
             # Remove candidate if not in cluster
             if not keyphrase in non_redundant_keyphrases:

@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import takahe
+import takahe.takahe as takahe
 
 
 ################################################################################
@@ -34,7 +34,7 @@ for cummulative_score, path in candidates:
 	normalized_score = cummulative_score / len(path)
 
 	# Print normalized score and compression
-	print round(normalized_score, 3), ' '.join([u[0] for u in path])
+	print(round(normalized_score, 3), ' '.join([u[0] for u in path]))
 
 # Write the word graph in the dot format
 compresser.write_dot('test.dot')
@@ -50,4 +50,4 @@ reranked_candidates = reranker.rerank_nbest_compressions()
 for score, path in reranked_candidates:
 	
 	# Print the best reranked candidates
-	print round(score, 3), ' '.join([u[0] for u in path])
+	print(round(score, 3), ' '.join([u[0] for u in path]))
