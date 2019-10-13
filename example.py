@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
 from takahe.takahe import WordGraph, KeyphraseReranker
@@ -30,17 +30,17 @@ for cummulative_score, path in candidates:
     normalized_score = cummulative_score / len(path)
 
     # Print normalized score and compression
-    print(round(normalized_score, 3), ' '.join([u[0] for u in path]))
+    print("%.3f: %s" % (normalized_score, " ".join([u[0] for u in path])))
 
 # Write the word graph in the dot format
 compresser.write_dot('test.dot')
 
 # 2. Rerank compressions by keyphrases (Boudin and Morin's method)
-reranker = KeyphraseReranker(sentences, candidates, lang='en')
+reranker = KeyphraseReranker(sentences, candidates, lang="en")
 
 reranked_candidates = reranker.rerank_nbest_compressions()
 
 # Loop over the best reranked candidates
 for score, path in reranked_candidates:
     # Print the best reranked candidates
-    print(round(score, 3), ' '.join([u[0] for u in path]))
+    print("%.3f: %s" % (score, " ".join([u[0] for u in path])))

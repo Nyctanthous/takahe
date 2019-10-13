@@ -1,6 +1,6 @@
-# takahe
+<h1 align="center">takahe3</h1>
 
-takahe is a multi-sentence compression module. Given a set of redundant sentences, a word-graph is constructed by iteratively adding sentences to it. The best compression is obtained by finding the shortest path in the word graph. The original algorithm was published and described in:
+`takahe3` is a Python3 conversion of the [takahe](https://github.com/boudinfl/takahe) multi-sentence compression package. Given a set of redundant sentences, a word-graph is constructed by iteratively adding sentences to it. The best compression is obtained by finding the shortest path in the word graph. The original algorithm was published and described in:
 
 * Katja Filippova, Multi-Sentence Compression: Finding Shortest Paths in Word Graphs, *Proceedings of the 23rd International Conference on Computational Linguistics (Coling 2010)*, pages 322-330, 2010.
 
@@ -11,54 +11,61 @@ A keyphrase-based reranking method can be applied to generate more informative c
 
 ## Dependancies
 
-As of today, takahe is built for Python 2.
-
 You may need to install the following libraries :
 
 - [networkx](http://networkx.github.io/) (installation guide is available [here](http://networkx.github.io/documentation/latest/install.html))
 - [graphviz](http://www.graphviz.org/) and graphviz-dev
 - [pygraphviz](http://pygraphviz.github.io/documentation/latest/install.html)
 
+Additionally, be aware that this package expects Part-of-Speech (POS) tags along with every word. `nltk` is a good choice for this task.
 
 
 ## Example
+
 A typical usage of this module is:
-    
-	import takahe
-        
-	# Create a word graph from the set of sentences with parameters :
-	# - minimal number of words in the compression : 6
-	# - language of the input sentences : en (english)
-	# - POS tag for punctuation marks : PUNCT
-	compresser = takahe.word_graph( sentences, 
-								    nb_words = 6, 
-		                            lang = 'en', 
-		                            punct_tag = "PUNCT" )
 
-	# Get the 50 best paths
-	candidates = compresser.get_compression(50)
+```python
+from takahe.takahe import WordGraph, KeyphraseReranker
 
-	# 1. Rerank compressions by path length (Filippova's method)
-	for cummulative_score, path in candidates:
+sentences = ["The/DT wife/NN of/IN a/DT former/JJ U.S./NNP president/NN \
+              Bill/NNP Clinton/NNP Hillary/NNP Clinton/NNP visited/VBD \
+              China/NNP last/JJ Monday/NNP ./PUNCT", "Hillary/NNP Clinton/NNP \
+              wanted/VBD to/TO visit/VB China/NNP last/JJ month/NN but/CC \
+              postponed/VBD her/PRP$ plans/NNS till/IN Monday/NNP last/JJ \
+              week/NN ./PUNCT", "Hillary/NNP Clinton/NNP paid/VBD a/DT \
+              visit/NN to/TO the/DT People/NNP Republic/NNP of/IN China/NNP \
+              on/IN Monday/NNP ./PUNCT", "Last/JJ week/NN the/DT \
+              Secretary/NNP of/IN State/NNP Ms./NNP Clinton/NNP visited/VBD \
+              Chinese/JJ officials/NNS ./PUNCT"]
 
-		# Normalize path score by path length
-		normalized_score = cummulative_score / len(path)
+# Create a word graph from the set of sentences with parameters :
+# - minimal number of words in the compression : 6
+# - language of the input sentences : en (english)
+# - POS tag for punctuation marks : PUNCT
+compresser = WordGraph(sentences, nb_words=6, lang='en', punct_tag="PUNCT")
 
-		# Print normalized score and compression
-		print round(normalized_score, 3), ' '.join([u[0] for u in path])
+# Get the 50 best paths
+candidates = compresser.get_compression(50)
 
-	# Write the word graph in the dot format
-	compresser.write_dot('test.dot')
+# 1. Rerank compressions by path length (Filippova's method)
+for cummulative_score, path in candidates:
 
-	# 2. Rerank compressions by keyphrases (Boudin and Morin's method)
-	reranker = takahe.keyphrase_reranker( sentences,  
-										  candidates, 
-										  lang = 'en' )
+    # Normalize path score by path length
+    normalized_score = cummulative_score / len(path)
 
-	reranked_candidates = reranker.rerank_nbest_compressions()
+    # Print normalized score and compression
+    print("%.3f: %s" % (normalized_score, " ".join([u[0] for u in path])))
 
-	# Loop over the best reranked candidates
-	for score, path in reranked_candidates:
-		
-		# Print the best reranked candidates
-		print round(score, 3), ' '.join([u[0] for u in path])
+# Write the word graph in the dot format
+compresser.write_dot('test.dot')
+
+# 2. Rerank compressions by keyphrases (Boudin and Morin's method)
+reranker = KeyphraseReranker(sentences, candidates, lang="en")
+
+reranked_candidates = reranker.rerank_nbest_compressions()
+
+# Loop over the best reranked candidates
+for score, path in reranked_candidates:
+    # Print the best reranked candidates
+    print("%.3f: %s" % (score, " ".join([u[0] for u in path])))
+```
