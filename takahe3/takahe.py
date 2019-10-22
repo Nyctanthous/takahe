@@ -202,13 +202,14 @@ class WordGraph:
         whitespaces and convert each sentence to a list of (word, POS) tuples.
         """
 
-        for i in range(self.length):
+        processed = []
+        for sentence in self.sentence:
             # Normalise extra white spaces
-            self.sentence[i] = re.sub(' +', ' ', self.sentence[i])
-            self.sentence[i] = self.sentence[i].strip()
+            sentence = re.sub(' +', ' ', sentence)
+            sentence = sentence.strip()
 
             # Tokenize the current sentence in word/POS
-            sentence = self.sentence[i].split(' ')
+            sentence = sentence.split(' ')
 
             # Creating an empty container for the cleaned up sentence
             container = [(self.start, self.start)]
@@ -229,7 +230,9 @@ class WordGraph:
             container.append((self.stop, self.stop))
 
             # Recopy the container into the current sentence
-            self.sentence[i] = container
+            processed.append(container)
+
+        self.sentence = processed
 
     def build_graph(self):
         """
@@ -275,11 +278,11 @@ class WordGraph:
             # Create the mapping container
             mapping = [0] * sentence_len
 
-            #------------------------------------------------------------------
+            # -----------------------------------------------------------------
             # 1. non-stopwords for which no candidate exists in the graph or
             #    for which an unambiguous mapping is possible or which occur
             #    more than once in the sentence.
-            #------------------------------------------------------------------
+            # -----------------------------------------------------------------
             for j in range(sentence_len):
 
                 # Get the word and tag
@@ -323,10 +326,10 @@ class WordGraph:
                                             label=token.lower())
                         mapping[j] = (node, 1)
 
-            #------------------------------------------------------------------
+            # -----------------------------------------------------------------
             # 2. non-stopwords for which there are either several possible
             #    candidates in the graph.
-            #------------------------------------------------------------------
+            # -----------------------------------------------------------------
             for j in range(sentence_len):
 
                 # Get the word and tag
@@ -363,7 +366,7 @@ class WordGraph:
                         r_context = self.get_directed_context(node, l, 'right')
 
                         # Compute the (directed) context sum
-                        val = l_context.count(prev_node) 
+                        val = l_context.count(prev_node)
                         val += r_context.count(next_node)
 
                         # Add the count of the overlapping words
@@ -379,14 +382,13 @@ class WordGraph:
                     selected = 0
                     while not found:
                         # Select the ambiguous node
-                        selected = self.max_index(ambinode_overlap)
-                        if ambinode_overlap[selected] == 0:
-                            selected = self.max_index(ambinode_frequency)
+                        selected = self.max_index(ambinode_overlap) \
+                            if not ambinode_overlap[selected] \
+                            else self.max_index(ambinode_frequency)
 
                         # Get the sentences id of this node
-                        ids = []
-                        for sid, p in self.graph.node[(node, selected)]['info']:
-                            ids.append(sid)
+                        ids = [sid for sid, p in
+                               self.graph.node[(node, selected)]['info']]
 
                         # Test if there is no loop
                         if i not in ids:
@@ -404,7 +406,8 @@ class WordGraph:
 
                     # Update the node in the graph if not same sentence
                     if found:
-                        self.graph.node[(node, selected)]['info'].append((i, j))
+                        self.graph.node[(node, selected)]['info'] \
+                            .append((i, j))
                         mapping[j] = (node, selected)
 
                     # Else create new node for redundant word
@@ -471,16 +474,16 @@ class WordGraph:
                     selected = self.max_index(ambinode_overlap)
 
                     # Get the sentences id of the best candidate node
-                    ids = []
-                    for sid, pos_s in self.graph.node[(node, selected)]['info']:
-                        ids.append(sid)
+                    ids = [sid for sid, pos_s in
+                           self.graph.node[(node, selected)]['info']]
 
                     # Update the node in the graph if not same sentence and
                     # there is at least one overlap in context
                     if i not in ids and ambinode_overlap[selected] > 0:
 
                         # Update the node in the graph
-                        self.graph.node[(node, selected)]['info'].append((i, j))
+                        self.graph.node[(node, selected)]['info'] \
+                            .append((i, j))
 
                         # Mark the word as mapped to k
                         mapping[j] = (node, selected)
@@ -537,7 +540,7 @@ class WordGraph:
                         r_context = self.get_directed_context(node, l, 'right')
 
                         # Compute the (directed) context sum
-                        val = l_context.count(prev_node) 
+                        val = l_context.count(prev_node)
                         val += r_context.count(next_node)
 
                         # Add the count of the overlapping words
@@ -547,16 +550,16 @@ class WordGraph:
                     selected = self.max_index(ambinode_overlap)
 
                     # Get the sentences id of the best candidate node
-                    ids = []
-                    for sid, pos_s in self.graph.node[(node, selected)]['info']:
-                        ids.append(sid)
+                    ids = [sid for sid, pos_s in
+                           self.graph.node[(node, selected)]['info']]
 
                     # Update the node in the graph if not same sentence and
                     # there is at least one overlap in context
                     if i not in ids and ambinode_overlap[selected] > 1:
 
                         # Update the node in the graph
-                        self.graph.node[(node, selected)]['info'].append((i, j))
+                        self.graph.node[(node, selected)]['info'] \
+                            .append((i, j))
 
                         # Mark the word as mapped to k
                         mapping[j] = (node, selected)
@@ -598,11 +601,11 @@ class WordGraph:
         four parameters:
 
         - node is the word/POS tuple
-        - k is the node identifier used when multiple nodes refer to the same 
+        - k is the node identifier used when multiple nodes refer to the same
           word/POS (e.g. k=0 for (the/DET, 0), k=1 for (the/DET, 1), etc.)
-        - dir is the parameter that controls the directed context calculation, 
+        - dir is the parameter that controls the directed context calculation,
           it can be set to left, right or all (default)
-        - non_pos is a boolean allowing to remove stopwords from the context 
+        - non_pos is a boolean allowing to remove stopwords from the context
           (default is false)
         """
 
@@ -613,10 +616,10 @@ class WordGraph:
         # For all the sentence/position tuples
         for sid, off in self.graph.node[(node, k)]['info']:
             prev = self.sentence[sid][off-1][0].lower() + self.sep +\
-                   self.sentence[sid][off-1][1]
+                self.sentence[sid][off-1][1]
 
             next = self.sentence[sid][off+1][0].lower() + self.sep +\
-                   self.sentence[sid][off+1][1]
+                self.sentence[sid][off+1][1]
 
             if non_pos:
                 if self.sentence[sid][off-1][0] not in self.stopwords:
@@ -643,7 +646,7 @@ class WordGraph:
         Compute the weight of an edge *e* between nodes *node1* and *node2*.
         It is computed as e_ij = (A / B) / C with:
 
-        - A = freq(i) + freq(j), 
+        - A = freq(i) + freq(j),
         - B = Sum (s in S) 1 / diff(s, i, j)
         - C = freq(i) * freq(j)
 
@@ -706,7 +709,7 @@ class WordGraph:
 
             # Add the mininum distance to diff (i.e. in case of multiple
             # occurrencies of i or/and j in sentence s), 0 otherwise.
-            if len(all_diff_pos_i_j) > 0:
+            if len(all_diff_pos_i_j):
                 diff.append(1.0/min(all_diff_pos_i_j))
             else:
                 diff.append(0.0)
@@ -742,8 +745,9 @@ class WordGraph:
         # duplicate sentences passing throught different nodes
         sentence_container = {}
 
-        # While the number of shortest paths isn't reached or all paths explored
-        while len(kshortestpaths) < k and len(orderedX) > 0:
+        # While the number of shortest paths isn't reached or all paths
+        # explored
+        while len(kshortestpaths) < k and len(orderedX):
             # Searching for the shortest distance in orderedX
             shortest = orderedX.pop(0)
             shortestpath = paths[shortest]
@@ -828,11 +832,11 @@ class WordGraph:
 
     def get_compression(self, nb_candidates=50):
         """
-        Searches all possible paths from **start** to **end** in the word graph,
-        removes paths containing no verb or shorter than *n* words. Returns an
-        ordered list (smaller first) of nb (default value is 50) (cummulative
-        score, path) tuples. The score is not normalized with the sentence
-        length.
+        Searches all possible paths from **start** to **end** in the word
+        graph, removes paths containing no verb or shorter than *n* words.
+        Returns an ordered list (smaller first) of nb (default value is 50)
+        (cummulative score, path) tuples. The score is not normalized with the
+        sentence length.
         """
 
         # Search for the k-shortest paths in the graph
@@ -844,13 +848,13 @@ class WordGraph:
         fusions = []
 
         # Test if there are some paths
-        if len(self.paths) > 0:
+        if len(self.paths):
             # For nb candidates
             for i in range(min(nb_candidates, len(self.paths))):
                 nodes = self.paths[i][0]
                 sentence = []
 
-                for j in range(1, len(nodes)-1):
+                for j in range(1, len(nodes) - 1):
                     word, tag = nodes[j][0].split(self.sep)
                     sentence.append((word, tag))
 
@@ -893,10 +897,10 @@ class WordGraph:
                 node = token.lower() + self.sep + POS
 
                 # Add the token to the terms list
-                if node not in terms:
-                    terms[node] = [i]
-                else:
+                if node in terms:
                     terms[node].append(i)
+                else:
+                    terms[node] = [i]
 
         for w in terms:
             # Compute the term frequency
@@ -913,7 +917,7 @@ class WordGraph:
 
         # For each line in the file
         for line in codecs.open(path, 'r', 'utf-8'):
-            if not re.search('^#', line) and len(line.strip()) > 0:
+            if not re.search('^#', line) and len(line.strip()):
                 stopwords.add(line.strip().lower())
 
         # Return the set of stopwords
@@ -930,15 +934,15 @@ class KeyphraseReranker:
     to the keyphrases they contain. Keyphrases are extracted from the set of
     related sentences using a modified version of the TextRank method
     [mihalcea-tarau:2004:EMNLP]_. First, an undirected weighted graph is
-    constructed from the set of sentences in which *nodes* are (lowercased word,
-    POS) tuples and *edges* represent co-occurrences. The TextRank algorithm is
-    then applied on the graph to assign a score to each word. Second, keyphrase
-    candidates are extracted from the set of sentences using POS syntactic
-    filtering. Keyphrases are then ranked according to the words they contain.
-    This class requires a set of related sentences (as a list of POS annotated
-    sentences) and the N-best compression candidates (as a list of (score, list
-    of (word, POS) tuples) tuples). The following optional parameters can be
-    specified:
+    constructed from the set of sentences in which *nodes* are (lowercased
+    word, POS) tuples and *edges* represent co-occurrences. The TextRank
+    algorithm is then applied on the graph to assign a score to each word.
+    Second, keyphrase candidates are extracted from the set of sentences using
+    POS syntactic filtering. Keyphrases are then ranked according to the words
+    they contain. This class requires a set of related sentences (as a list of
+    POS annotated sentences) and the N-best compression candidates (as a list
+    of (score, list of (word, POS) tuples) tuples). The following optional
+    parameters can be specified:
 
     - lang is the language parameter and is used for selecting the correct
       POS tags used for filtering keyphrase candidates.
@@ -1099,7 +1103,7 @@ class KeyphraseReranker:
                     candidate.append((word, pos))
 
                 # If a candidate keyphrase is in the buffer
-                elif len(candidate) > 0 and self.is_a_candidate(candidate):
+                elif len(candidate) and self.is_a_candidate(candidate):
                     # Add candidate
                     keyphrase = ' '.join(u[0] for u in candidate)
                     self.keyphrase_candidates[keyphrase] = candidate
@@ -1169,19 +1173,16 @@ class KeyphraseReranker:
                     for node_k in self.graph.neighbors(node_j):
                         sum_wjk += self.graph[node_j][node_k]['weight']
 
-                    sum_Vj += ( (wji * WSVj) / sum_wjk )
+                    sum_Vj += ((wji * WSVj) / sum_wjk)
 
                 # Modify node score
                 self.word_scores[node_i] = (1 - d) + (d * sum_Vj)
 
                 # Compute the difference between old and new score
-                score_difference = math.fabs(self.word_scores[node_i] \
-                                   - current_node_scores[node_i])
+                score_difference = math.fabs(self.word_scores[node_i] -
+                                             current_node_scores[node_i])
 
                 max_node_difference = max(score_difference, score_difference)
-
-
-
 
     def score_keyphrase_candidates(self):
         """
@@ -1255,7 +1256,8 @@ class KeyphraseReranker:
         for cluster in clusters:
             # Find the best scored keyphrase candidate in the cluster
             sorted_cluster = sorted(clusters[cluster],
-                                    key=lambda cluster: self.keyphrase_scores[cluster],
+                                    key=lambda cluster:
+                                        self.keyphrase_scores[cluster],
                                     reverse=True)
 
             best_candidate_keyphrases.append(sorted_cluster[0])
@@ -1265,7 +1267,8 @@ class KeyphraseReranker:
 
         # Sort best candidate by score
         sorted_keyphrases = sorted(best_candidate_keyphrases,
-                                   key=lambda keyphrase: self.keyphrase_scores[keyphrase],
+                                   key=lambda keyphrase:
+                                       self.keyphrase_scores[keyphrase],
                                    reverse=True)
 
         # Last loop to remove redundancy in cluster best candidates
@@ -1278,7 +1281,8 @@ class KeyphraseReranker:
             if not is_redundant:
                 non_redundant_keyphrases.append(keyphrase)
 
-        # Modify the keyphrase candidate dictionnaries according to the clusters
+        # Modify the keyphrase candidate dictionnaries according to
+        # the clusters
         for keyphrase in list(self.keyphrase_candidates.keys()):
             # Remove candidate if not in cluster
             if keyphrase not in non_redundant_keyphrases:

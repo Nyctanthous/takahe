@@ -1,5 +1,7 @@
 <h1 align="center">takahe3</h1>
 
+### Unsupervised multi-sentence compression
+
 `takahe3` is a Python3 conversion of the [takahe](https://github.com/boudinfl/takahe) multi-sentence compression package. Given a set of redundant sentences, a word-graph is constructed by iteratively adding sentences to it. The best compression is obtained by finding the shortest path in the word graph. The original algorithm was published and described in:
 
 * Katja Filippova, Multi-Sentence Compression: Finding Shortest Paths in Word Graphs, *Proceedings of the 23rd International Conference on Computational Linguistics (Coling 2010)*, pages 322-330, 2010.
@@ -9,13 +11,22 @@ A keyphrase-based reranking method can be applied to generate more informative c
 * Florian Boudin and Emmanuel Morin, Keyphrase Extraction for N-best Reranking in Multi-Sentence Compression, *Proceedings of the 2013 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies (NAACL-HLT 2013)*, 2013.
 
 
-## Dependancies
+### Requirements
 
-You may need to install the following libraries :
++ Python 3.5+
 
-- [networkx](http://networkx.github.io/) (installation guide is available [here](http://networkx.github.io/documentation/latest/install.html))
-- [graphviz](http://www.graphviz.org/) and graphviz-dev
-- [pygraphviz](http://pygraphviz.github.io/documentation/latest/install.html)
+All other requirements will be automatically acquired by `pip`; see `requirements.txt` for a complete list of all requirements that will be automatically obtained.
+
+
+### Installation
+
+You can install from this github repository with
+
+```bash
+git clone https://github.com/Nyctanthous/takahe3.git
+cd takahe3
+pip install .
+```
 
 Additionally, be aware that this package expects Part-of-Speech (POS) tags along with every word. `nltk` is a good choice for this task.
 
@@ -25,7 +36,7 @@ Additionally, be aware that this package expects Part-of-Speech (POS) tags along
 A typical usage of this module is:
 
 ```python
-from takahe.takahe import WordGraph, KeyphraseReranker
+from takahe3.takahe import WordGraph, KeyphraseReranker
 
 sentences = ["The/DT wife/NN of/IN a/DT former/JJ U.S./NNP president/NN \
               Bill/NNP Clinton/NNP Hillary/NNP Clinton/NNP visited/VBD \
