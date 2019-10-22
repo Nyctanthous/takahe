@@ -299,7 +299,7 @@ class WordGraph:
                 k = self.ambiguous_nodes(node)
 
                 # If there is no node in the graph, create one with id = 0
-                if k == 0:
+                if not k:
                     # Add the node in the graph
                     self.graph.add_node((node, 0), info=[(i, j)],
                                         label=token.lower())
@@ -340,7 +340,7 @@ class WordGraph:
                     continue
 
                 # If word is not already mapped to a node
-                if mapping[j] == 0:
+                if not mapping[j]:
 
                     # Create the node identifier
                     node = token.lower() + self.sep + POS
@@ -576,8 +576,8 @@ class WordGraph:
             # -----------------------------------------------------------------
             # 4. Connects the mapped words with directed edges
             # -----------------------------------------------------------------
-            for j in range(1, len(mapping)):
-                self.graph.add_edge(mapping[j-1], mapping[j])
+            for j in range(len(mapping) - 1):
+                self.graph.add_edge(mapping[j], mapping[j + 1])
 
         # Assigns a weight to each node in the graph
         for node1, node2 in self.graph.edges:

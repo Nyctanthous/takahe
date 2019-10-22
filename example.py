@@ -33,7 +33,7 @@ for cummulative_score, path in candidates:
     print("%.3f: %s" % (normalized_score, " ".join([u[0] for u in path])))
 
 # Write the word graph in the dot format
-#compresser.write_dot('test.dot')
+compresser.write_dot('test.dot')
 
 # 2. Rerank compressions by keyphrases (Boudin and Morin's method)
 reranker = KeyphraseReranker(sentences, candidates, lang="en")
