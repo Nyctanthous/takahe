@@ -115,6 +115,43 @@ import bisect
 import networkx as nx
 from networkx.drawing.nx_pydot import write_dot
 
+class TakaheTextProcessor:
+    """
+    Base class for text processing utilities
+    """
+
+    def __init__(self, pos_separator="/"):
+        self.pos_separator = pos_separator
+        """ The character (or string) used to separate a word and its Part of
+            Speech tag """
+
+    def word_pos_to_tuple(self, word):
+        """
+        This function converts a word/part_of_speech to a (word, part_of_speech) tuple.
+        The character used for separating word and part_of_speech can be specified.
+        """
+
+        # Splitting word, part_of_speech using regex
+        pos_separator_re = re.escape(self.pos_separator)
+        m = re.match(rf"^(.+){pos_separator_re}(.+)$", word)
+
+        if m is None:
+            raise ValueError(
+                f"Could not perform word/part_of_speech conversion on '{word}'."
+            )
+
+        # Extract the word information
+        token, position = m.group(1), m.group(2)
+
+        return (token.lower(), position)
+
+    def tuple_to_word_pos(self, word_pos_tuple):
+        """
+        This function converts a (word, part_of_speech) tuple to word/part_of_speech. The character
+        used for separating word and part_of_speech can be specified (default is /).
+        """
+        return f"{word_pos_tuple[0]}{self.pos_separator}{word_pos_tuple[1]}"
+
 
 class WordGraph:
     """
@@ -975,25 +1012,25 @@ class WordGraph:
         write_dot(self.graph, dotfile)
 
 
-class KeyphraseReranker:
+class KeyphraseReranker(TakaheTextProcessor):
     """
     The *KeyphraseReranker* reranks a list of compression candidates according
     to the keyphrases they contain. Keyphrases are extracted from the set of
     related sentences using a modified version of the TextRank method
     [mihalcea-tarau:2004:EMNLP]_. First, an undirected weighted graph is
     constructed from the set of sentences in which *nodes* are (lowercased
-    word, POS) tuples and *edges* represent co-occurrences. The TextRank
+    word, part_of_speech) tuples and *edges* represent co-occurrences. The TextRank
     algorithm is then applied on the graph to assign a score to each word.
     Second, keyphrase candidates are extracted from the set of sentences using
-    POS syntactic filtering. Keyphrases are then ranked according to the words
+    part_of_speech syntactic filtering. Keyphrases are then ranked according to the words
     they contain. This class requires a set of related sentences (as a list of
-    POS annotated sentences) and the N-best compression candidates (as a list
-    of (score, list of (word, POS) tuples) tuples). The following optional
+    part_of_speech annotated sentences) and the N-best compression candidates (as a list
+    of (score, list of (word, part_of_speech) tuples) tuples). The following optional
     parameters can be specified:
 
     - lang is the language parameter and is used for selecting the correct
-      POS tags used for filtering keyphrase candidates.
-    - patterns is a list of extra POS patterns (regexes) used for filtering
+      part_of_speech tags used for filtering keyphrase candidates.
+    - patterns is a list of extra part_of_speech patterns (regexes) used for filtering
       keyphrase candidates, default is ``^(JJ)*(NNP|NNS|NN)+$`` for English and
       ``^(ADJ)*(NC|NPP)+(ADJ)*$`` for French.
 
@@ -1011,7 +1048,9 @@ class KeyphraseReranker:
         stopwords=[],
         pos_separator="/",
     ):
-        self.sentences = list(sentence_list)
+        super().__init__(pos_separator=pos_separator)
+
+        self.all_sentences = list(sentence_list)
         """ The list of related sentences provided by the user. """
 
         self.nbest_compressions = nbest_compressions
@@ -1026,12 +1065,8 @@ class KeyphraseReranker:
         self.stopwords = set(stopwords)
         """ The set of words to be excluded from keyphrase extraction. """
 
-        self.pos_separator = pos_separator
-        """ The character (or string) used to separate a word and its
-        Part Of Speech tag. """
-
         self.syntactic_filter = ["JJ", "NNP", "NNS", "NN", "NNPS"]
-        """ The POS tags used for generating keyphrase candidates. """
+        """ The part_of_speech tags used for generating keyphrase candidates. """
 
         self.keyphrase_candidates = {}
         """ Keyphrase candidates generated from the set of sentences. """
@@ -1060,7 +1095,7 @@ class KeyphraseReranker:
         self.generate_candidates()
 
         # 3. Compute the TextRank scores for each word in the graph
-        self.undirected_TextRank()
+        self.undirected_text_rank()
 
         # 4. Compute the score of each keyphrase candidate
         self.score_keyphrase_candidates()
@@ -1077,63 +1112,53 @@ class KeyphraseReranker:
         """
 
         # For each sentence
-        for i in range(len(self.sentences)):
-            # Normalise extra white spaces
-            self.sentences[i] = re.sub(" +", " ", self.sentences[i])
+        for i, _ in enumerate(self.all_sentences):
+            # Normalize extra white spaces
+            self.all_sentences[i] = re.sub(" +", " ", self.all_sentences[i])
 
-            # Tokenize the current sentence in word/POS
-            sentence = self.sentences[i].split(" ")
+            # Tokenize the current sentence in word/part_of_speech
+            tokenized = self.all_sentences[i].split(" ")
 
             # 1. Looping over the words and creating the nodes. Sentences are
             #    also converted to a list of tuples
-            for j in range(len(sentence)):
-                # Convert word/POS to (word, POS) tuple
-                word, pos = self.wordpos_to_tuple(sentence[j])
+            for j, word_pos in enumerate(tokenized):
+                # Convert word/part_of_speech to (word, part_of_speech) tuple
+                tokenized[j] = self.word_pos_to_tuple(word_pos)
 
-                # Replace word/POS by (word, POS) tuple in the sentence
-                sentence[j] = (word.lower(), pos)
-
-                # Modify the POS tags of stopwords to exclude them
-                if sentence[j][0] in self.stopwords:
-                    sentence[j] = (sentence[j][0], "STOPWORD")
+                # Modify the part_of_speech tags of stopwords to exclude them
+                if tokenized[j][0] in self.stopwords:
+                    tokenized[j][1] = "STOPWORD"
 
                 # Add the word only if it belongs to one of the syntactic
                 # categories
-                if sentence[j][1] in self.syntactic_filter:
+                if tokenized[j][1] in self.syntactic_filter:
                     # Add node to the graph if not exists
-                    if not self.graph.has_node(sentence[j]):
-                        self.graph.add_node(sentence[j])
+                    if tokenized[j] not in self.graph:
+                        self.graph.add_node(tokenized[j])
 
-            # 2. Create the edges between the nodes using co-occurencies
-            for j in range(len(sentence)):
-                # Get the first node
-                first_node = sentence[j]
-
+            # 2. Create the edges between the nodes using co-occurrences
+            for j, first_node in enumerate(tokenized):
                 # Switch to set the window for the whole sentence
-                max_window = window
-                if window < 1:
-                    max_window = len(sentence)
+                max_window = len(tokenized) if window < 1 else window
 
                 # For the other words in the window
-                for k in range(j + 1, min(len(sentence), j + max_window)):
+                for k in range(j + 1, min(len(tokenized), j + max_window)):
                     # Get the second node
-                    second_node = sentence[k]
+                    second_node = tokenized[k]
 
                     # Check if nodes exists
-                    if self.graph.has_node(first_node) and self.graph.has_node(
-                        second_node
-                    ):
-                        # Add edge if not exists
-                        if not self.graph.has_edge(first_node, second_node):
+                    if first_node in self.graph and second_node in self.graph:
+                        if second_node not in self.graph[first_node]:
+                            # Add edge if not exists
                             self.graph.add_edge(
                                 first_node, second_node, weight=1
                             )
-                        # Else modify weight
                         else:
+                            # Else modify weight
                             self.graph[first_node][second_node]["weight"] += 1
 
             # Replace sentence by the list of tuples
-            self.sentences[i] = sentence
+            self.all_sentences[i] = tokenized
 
     def generate_candidates(self):
         """
@@ -1143,7 +1168,7 @@ class KeyphraseReranker:
         """
 
         # For each sentence
-        for sentence in self.sentences:
+        for sentence in self.all_sentences:
             # List for iteratively constructing a keyphrase candidate
             candidate = []
 
@@ -1154,7 +1179,7 @@ class KeyphraseReranker:
                     candidate.append((word, pos))
 
                 # If a candidate keyphrase is in the buffer
-                elif len(candidate) and self.is_a_candidate(candidate):
+                elif candidate and self.is_a_candidate(candidate):
                     # Add candidate
                     keyphrase = " ".join(u[0] for u in candidate)
                     self.keyphrase_candidates[keyphrase] = candidate
@@ -1166,7 +1191,7 @@ class KeyphraseReranker:
                     candidate = []
 
             # Handle the last possible candidate
-            if len(candidate) and self.is_a_candidate(candidate):
+            if candidate and self.is_a_candidate(candidate):
                 # Add candidate
                 keyphrase = " ".join(u[0] for u in candidate)
                 self.keyphrase_candidates[keyphrase] = candidate
@@ -1179,13 +1204,13 @@ class KeyphraseReranker:
 
         candidate_pattern = "".join(u[1] for u in keyphrase_candidate)
 
-        for pattern in self.syntactic_patterns:
-            if not re.search(pattern, candidate_pattern):
-                return False
+        # This pattern must comply with all described patterns
+        return all(
+            re.search(pattern, candidate_pattern) is not None
+            for pattern in self.syntactic_patterns
+        )
 
-        return True
-
-    def undirected_TextRank(self, d=0.85, f_conv=0.0001):
+    def undirected_text_rank(self, d=0.85, f_conv=0.0001):
         """
         Implementation of the TextRank algorithm as described in
         [mihalcea-tarau:2004:EMNLP]_. Node scores are computed iteratively
@@ -1198,9 +1223,7 @@ class KeyphraseReranker:
         max_node_difference = f_conv
 
         # Initialise node scores to 1
-        self.word_scores = {}
-        for node in self.graph.nodes():
-            self.word_scores[node] = 1.0
+        self.word_scores = {node: 1.0 for node in self.graph.nodes()}
 
         # While the node scores are not stabilized
         while max_node_difference >= f_conv:
@@ -1215,11 +1238,10 @@ class KeyphraseReranker:
                 for node_j in self.graph.neighbors(node_i):
                     wji = self.graph[node_j][node_i]["weight"]
                     WSVj = current_node_scores[node_j]
-                    sum_wjk = 0.0
-
-                    # For each node K connected to J
-                    for node_k in self.graph.neighbors(node_j):
-                        sum_wjk += self.graph[node_j][node_k]["weight"]
+                    sum_wjk = sum(
+                        self.graph[node_j][node_k]["weight"]
+                        for node_k in self.graph.neighbors(node_j)
+                    )
 
                     sum_Vj += (wji * WSVj) / sum_wjk
 
@@ -1241,17 +1263,16 @@ class KeyphraseReranker:
         """
 
         # Compute the score of each candidate according to its words
-        for keyphrase in self.keyphrase_candidates:
-            # Compute the sum of word scores for each candidate
-            keyphrase_score = 0.0
-            for word_pos_tuple in self.keyphrase_candidates[keyphrase]:
-                keyphrase_score += self.word_scores[word_pos_tuple]
-
-            # Normalise score by length
-            keyphrase_score /= len(self.keyphrase_candidates[keyphrase]) + 1.0
-
-            # Add score to the keyphrase candidates
-            self.keyphrase_scores[keyphrase] = keyphrase_score
+        # We compute the sum of word scores for each candidate, normalized by
+        # length
+        self.keyphrase_scores = {
+            keyphrase: sum(
+                self.word_scores[word_pos_tuple]
+                for word_pos_tuple in candidate
+            )
+            / (len(candidate) + 1.0)
+            for keyphrase, candidate in self.keyphrase_candidates.items()
+        }
 
     def cluster_keyphrase_candidates(self):
         """
@@ -1287,7 +1308,7 @@ class KeyphraseReranker:
 
                 # Check if keyphrase words are all contained in the cluster
                 # representative words
-                if not len(keyphrase_words.difference(cluster_words)):
+                if not keyphrase_words.difference(cluster_words):
                     # Add keyphrase to cluster
                     clusters[cluster].append(keyphrase)
 
@@ -1299,21 +1320,15 @@ class KeyphraseReranker:
                 clusters[keyphrase] = [keyphrase]
 
         # Initialize the best candidate cluster container
-        best_candidate_keyphrases = []
-
-        # Loop over the clusters to find the best keyphrases
-        for cluster in clusters:
-            # Find the best scored keyphrase candidate in the cluster
-            sorted_cluster = sorted(
+        best_candidate_keyphrases = [
+            # Find the best keyphrase in each cluster
+            sorted(
                 clusters[cluster],
                 key=lambda cluster: self.keyphrase_scores[cluster],
                 reverse=True,
-            )
-
-            best_candidate_keyphrases.append(sorted_cluster[0])
-
-        # Initialize the non redundant clustered keyphrases
-        non_redundant_keyphrases = []
+            )[0]
+            for cluster in clusters
+        ]
 
         # Sort best candidate by score
         sorted_keyphrases = sorted(
@@ -1322,17 +1337,10 @@ class KeyphraseReranker:
             reverse=True,
         )
 
-        # Last loop to remove redundancy in cluster best candidates
-        for keyphrase in sorted_keyphrases:
-            is_redundant = False
-            for prev_keyphrase in non_redundant_keyphrases:
-                if keyphrase in prev_keyphrase:
-                    is_redundant = True
-                    break
-            if not is_redundant:
-                non_redundant_keyphrases.append(keyphrase)
+        # Non-redundant clustered keyphrases
+        non_redundant_keyphrases = set(sorted_keyphrases)
 
-        # Modify the keyphrase candidate dictionnaries according to
+        # Modify the keyphrase candidate dictionaries according to
         # the clusters
         for keyphrase in list(self.keyphrase_candidates.keys()):
             # Remove candidate if not in cluster
@@ -1342,49 +1350,26 @@ class KeyphraseReranker:
 
     def rerank_nbest_compressions(self):
         """
-        Function that reranks the nbest compressions according to the
-        keyphrases they contain. The cummulative score (original score) is
-        normalized by (compression length * Sum of keyphrase scores).
+        Function that re-ranks the n-best compressions according to the
+        keyphrases they contain. The cumulative score (original score) is
+        normalized by (compression length * sum of keyphrase scores).
         """
         reranked_compressions = []
 
         # Loop over the compression candidates
-        for cummulative_score, path in self.nbest_compressions:
-            # Generate the sentence form the path
+        for cumulative_score, path in self.nbest_compressions:
+            # Generate the sentence from the path
             compression = " ".join([u[0] for u in path])
 
             # Initialize total keyphrase score
-            total_keyphrase_score = 1.0
+            total_keyphrase_score = 1.0 + sum(
+                self.keyphrase_scores[keyphrase]
+                for keyphrase in self.keyphrase_candidates
+                if keyphrase in compression
+            )
 
-            # Loop over the keyphrases and sum the scores
-            for keyphrase in self.keyphrase_candidates:
-                if keyphrase in compression:
-                    total_keyphrase_score += self.keyphrase_scores[keyphrase]
-
-            score = cummulative_score / (len(path) * total_keyphrase_score)
+            score = cumulative_score / (len(path) * total_keyphrase_score)
 
             bisect.insort(reranked_compressions, (score, path))
 
         return reranked_compressions
-
-    def wordpos_to_tuple(self, word):
-        """
-        This function converts a word/POS to a (word, POS) tuple. The character
-        used for separating word and POS can be specified (default is /).
-        """
-
-        # Splitting word, POS using regex
-        pos_separator_re = re.escape(self.pos_separator)
-        m = re.match(r"^(.+)" + pos_separator_re + r"(.+)$", word)
-
-        # Extract the word information
-        token, POS = m.group(1), m.group(2)
-
-        return (token.lower(), POS)
-
-    def tuple_to_wordpos(self, wordpos_tuple):
-        """
-        This function converts a (word, POS) tuple to word/POS. The character
-        used for separating word and POS can be specified (default is /).
-        """
-        return wordpos_tuple[0] + self.pos_separator + wordpos_tuple[1]
