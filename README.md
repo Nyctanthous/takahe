@@ -68,3 +68,15 @@ for score, path in reranked_candidates:
     # Print the best re-ranked candidates
     print("%.3f: %s" % (score, " ".join([u[0] for u in path])))
 ```
+
+If you choose to use `nltk` to tag words with parts of speech, a utility is
+provided. Once you install and configure `nltk`, an example usage is:
+
+```python
+from takahe3.utilities import tag_text_part_of_speech
+
+text = "The wife of former U.S. president Bill Clinton, Hillary Clinton, visited China last Monday. Hillary Clinton wanted to visit China last month but postponed her plans till Monday last week. Hillary Clinton paid a visit to the People's Republic of China on Monday. Secretary of State Ms. Clinton visited Chinese officials."
+sentences = tag_text_part_of_speech(text)
+
+# Now, you can process your text as in the example above
+```
