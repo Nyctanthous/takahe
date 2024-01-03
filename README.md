@@ -4,7 +4,8 @@
 
 `takahe3` is a Python3 conversion of the [takahe](https://github.com/boudinfl/takahe) multi-sentence compression package. Given a set of redundant sentences, a word-graph is constructed by iteratively adding sentences to it. The best compression is obtained by finding the shortest path in the word graph. The original algorithm was published and described in:
 
-* Katja Filippova, Multi-Sentence Compression: Finding Shortest Paths in Word Graphs, *Proceedings of the 23rd International Conference on Computational Linguistics (Coling 2010)*, pages 322-330, 2010.
+``
+Katja Filippova, Multi-Sentence Compression: Finding Shortest Paths in Word Graphs, *Proceedings of the 23rd International Conference on Computational Linguistics (Coling 2010)*, pages 322-330, 2010.
 
 A keyphrase-based reranking method can be applied to generate more informative compressions. The reranking method is described in:
 
@@ -53,30 +54,18 @@ sentences = ["The/DT wife/NN of/IN a/DT former/JJ U.S./NNP president/NN \
 # - minimal number of words in the compression : 6
 # - language of the input sentences : en (english)
 # - POS tag for punctuation marks : PUNCT
-compresser = WordGraph(sentences, nb_words=6, lang='en', punct_tag="PUNCT")
+compressor = WordGraph(sentences, nb_words=6, lang='en', punct_tag="PUNCT")
 
-# Get the 50 best paths
-candidates = compresser.get_compression(50)
+# Get the 10 best paths
+candidates = compressor.get_compression(5)
 
-# 1. Rerank compressions by path length (Filippova's method)
-for cummulative_score, path in candidates:
-
-    # Normalize path score by path length
-    normalized_score = cummulative_score / len(path)
-
-    # Print normalized score and compression
-    print("%.3f: %s" % (normalized_score, " ".join([u[0] for u in path])))
-
-# Write the word graph in the dot format
-compresser.write_dot('test.dot')
-
-# 2. Rerank compressions by keyphrases (Boudin and Morin's method)
+# 2. Re-rank compressions by keyphrases (Boudin and Morin's method)
 reranker = KeyphraseReranker(sentences, candidates, lang="en")
 
 reranked_candidates = reranker.rerank_nbest_compressions()
 
-# Loop over the best reranked candidates
+# Loop over the best re-ranked candidates
 for score, path in reranked_candidates:
-    # Print the best reranked candidates
+    # Print the best re-ranked candidates
     print("%.3f: %s" % (score, " ".join([u[0] for u in path])))
 ```

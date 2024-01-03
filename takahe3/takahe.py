@@ -312,12 +312,12 @@ class WordGraph:
 
                     # Get the sentences id of this node
                     ids = []
-                    for sid, pos_s in self.graph.node[(node, 0)]['info']:
+                    for sid, pos_s in self.graph.nodes[(node, 0)]['info']:
                         ids.append(sid)
 
                     # Update the node in the graph if not same sentence
                     if i not in ids:
-                        self.graph.node[(node, 0)]['info'].append((i, j))
+                        self.graph.nodes[(node, 0)]['info'].append((i, j))
                         mapping[j] = (node, 0)
 
                     # Else Create new node for redundant word
@@ -374,7 +374,7 @@ class WordGraph:
 
                         # Add the frequency of the ambiguous node
                         ambinode_frequency.append(
-                            len(self.graph.node[(node, l)]['info'])
+                            len(self.graph.nodes[(node, l)]['info'])
                         )
 
                     # Search for the best candidate while avoiding a loop
@@ -388,7 +388,7 @@ class WordGraph:
 
                         # Get the sentences id of this node
                         ids = [sid for sid, p in
-                               self.graph.node[(node, selected)]['info']]
+                               self.graph.nodes[(node, selected)]['info']]
 
                         # Test if there is no loop
                         if i not in ids:
@@ -406,7 +406,7 @@ class WordGraph:
 
                     # Update the node in the graph if not same sentence
                     if found:
-                        self.graph.node[(node, selected)]['info'] \
+                        self.graph.nodes[(node, selected)]['info'] \
                             .append((i, j))
                         mapping[j] = (node, selected)
 
@@ -475,14 +475,14 @@ class WordGraph:
 
                     # Get the sentences id of the best candidate node
                     ids = [sid for sid, pos_s in
-                           self.graph.node[(node, selected)]['info']]
+                           self.graph.nodes[(node, selected)]['info']]
 
                     # Update the node in the graph if not same sentence and
                     # there is at least one overlap in context
                     if i not in ids and ambinode_overlap[selected] > 0:
 
                         # Update the node in the graph
-                        self.graph.node[(node, selected)]['info'] \
+                        self.graph.nodes[(node, selected)]['info'] \
                             .append((i, j))
 
                         # Mark the word as mapped to k
@@ -551,14 +551,14 @@ class WordGraph:
 
                     # Get the sentences id of the best candidate node
                     ids = [sid for sid, pos_s in
-                           self.graph.node[(node, selected)]['info']]
+                           self.graph.nodes[(node, selected)]['info']]
 
                     # Update the node in the graph if not same sentence and
                     # there is at least one overlap in context
                     if i not in ids and ambinode_overlap[selected] > 1:
 
                         # Update the node in the graph
-                        self.graph.node[(node, selected)]['info'] \
+                        self.graph.nodes[(node, selected)]['info'] \
                             .append((i, j))
 
                         # Mark the word as mapped to k
@@ -614,7 +614,7 @@ class WordGraph:
         r_context = []
 
         # For all the sentence/position tuples
-        for sid, off in self.graph.node[(node, k)]['info']:
+        for sid, off in self.graph.nodes[(node, k)]['info']:
             prev = self.sentence[sid][off-1][0].lower() + self.sep +\
                 self.sentence[sid][off-1][1]
 
@@ -654,10 +654,10 @@ class WordGraph:
         """
 
         # Get the list of (sentence_id, pos_in_sentence) for node1
-        info1 = self.graph.node[node1]['info']
+        info1 = self.graph.nodes[node1]['info']
 
         # Get the list of (sentence_id, pos_in_sentence) for node2
-        info2 = self.graph.node[node2]['info']
+        info2 = self.graph.nodes[node2]['info']
 
         # Get the frequency of node1 in the graph
         # freq1 = self.graph.degree(node1)

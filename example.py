@@ -18,29 +18,31 @@ sentences = ["The/DT wife/NN of/IN a/DT former/JJ U.S./NNP president/NN \
 # - minimal number of words in the compression : 6
 # - language of the input sentences : en (english)
 # - POS tag for punctuation marks : PUNCT
-compresser = WordGraph(sentences, nb_words=6, lang='en', punct_tag="PUNCT")
+compressor = WordGraph(sentences, nb_words=6, lang='en', punct_tag="PUNCT")
 
 # Get the 50 best paths
-candidates = compresser.get_compression(50)
+candidates = compressor.get_compression(50)
 
-# 1. Rerank compressions by path length (Filippova's method)
-for cummulative_score, path in candidates:
-
+# 1. Re-rank compressions by path length (Filippova's method)
+results = {
     # Normalize path score by path length
-    normalized_score = cummulative_score / len(path)
+    cumulative_score / len(path): ' '.join([u[0] for u in path])
+    for cumulative_score, path in candidates
+}
+for score, path in sorted(results.items()):
+    # Print the best re-ranked candidates
+    print(f"{score:.3}: {path}")
 
-    # Print normalized score and compression
-    print("%.3f: %s" % (normalized_score, " ".join([u[0] for u in path])))
 
 # Write the word graph in the dot format
-compresser.write_dot('test.dot')
+compressor.write_dot('test.dot')
 
-# 2. Rerank compressions by keyphrases (Boudin and Morin's method)
+# 2. Re-rank compressions by keyphrases (Boudin and Morin's method)
 reranker = KeyphraseReranker(sentences, candidates, lang="en")
 
 reranked_candidates = reranker.rerank_nbest_compressions()
 
-# Loop over the best reranked candidates
+# Loop over the best re-ranked candidates
 for score, path in reranked_candidates:
-    # Print the best reranked candidates
-    print("%.3f: %s" % (score, " ".join([u[0] for u in path])))
+    # Print the best re-ranked candidates
+    print(f"{score:.3}: {' '.join([u[0] for u in path])}")
