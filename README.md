@@ -4,8 +4,7 @@
 
 `takahe3` is a Python3 conversion of the [takahe](https://github.com/boudinfl/takahe) multi-sentence compression package. Given a set of redundant sentences, a word-graph is constructed by iteratively adding sentences to it. The best compression is obtained by finding the shortest path in the word graph. The original algorithm was published and described in:
 
-``
-Katja Filippova, Multi-Sentence Compression: Finding Shortest Paths in Word Graphs, *Proceedings of the 23rd International Conference on Computational Linguistics (Coling 2010)*, pages 322-330, 2010.
+* Katja Filippova, Multi-Sentence Compression: Finding Shortest Paths in Word Graphs, *Proceedings of the 23rd International Conference on Computational Linguistics (Coling 2010)*, pages 322-330, 2010.
 
 A keyphrase-based reranking method can be applied to generate more informative compressions. The reranking method is described in:
 
