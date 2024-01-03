@@ -19,7 +19,7 @@
     sentences, a word-graph is constructed by iteratively adding sentences to
     it. The best compression is obtained by finding the shortest path in the
     word graph. The original algorithm was published and described in
-    [filippova:2010:COLING]_. A keyphrase-based reranking method, described in
+    [filippova:2010:COLING]_. A keyphrase-based re-ranking method, described in
     [boudin-morin:2013:NAACL]_ can be applied to generate more informative
     compressions.
 
@@ -44,7 +44,7 @@
           contexts), improved docstring documentation, bug fixes
         - 0.3 (Oct. 2011), improved K-shortest paths algorithm including
           verb/size constraints and ordered lists for performance
-        - 0.2 (Dec. 2010), removed dependencies from nltk (i.e. POS-tagging,
+        - 0.2 (Dec. 2010), removed dependencies from nltk (i.e. part_of_speech-tagging,
           tokenization and stopwords removal)
         - 0.1 (Nov. 2010), first version
 
@@ -72,32 +72,32 @@
     # Create a word graph from the set of sentences with parameters :
     # - minimal number of words in the compression : 6
     # - language of the input sentences : en (english)
-    # - POS tag for punctuation marks : PUNCT
-    compresser = WordGraph(sentences, nb_words=6, lang='en', punct_tag="PUNCT")
+    # - part_of_speech tag for punctuation marks : PUNCT
+    compressor = WordGraph(sentences, nb_words=6, lang='en', punct_tag="PUNCT")
 
     # Get the 50 best paths
-    candidates = compresser.get_compression(50)
+    candidates = compressor.get_compression(50)
 
-    # 1. Rerank compressions by path length (Filippova's method)
-    for cummulative_score, path in candidates:
+    # 1. Re-rank compressions by path length (Filippova's method)
+    for cumulative_score, path in candidates:
 
         # Normalize path score by path length
-        normalized_score = cummulative_score / len(path)
+        normalized_score = cumulative_score / len(path)
 
         # Print normalized score and compression
         print(round(normalized_score, 3), ' '.join([u[0] for u in path]))
 
     # Write the word graph in the dot format
-    compresser.write_dot('test.dot')
+    compressor.write_dot('test.dot')
 
-    # 2. Rerank compressions by keyphrases (Boudin and Morin's method)
+    # 2. Re-rank compressions by keyphrases (Boudin and Morin's method)
     reranker = KeyphraseReranker(sentences, candidates, lang='en')
 
     reranked_candidates = reranker.rerank_nbest_compressions()
 
-    # Loop over the best reranked candidates
-    for score, path in reranked_candidates:
-        # Print the best reranked candidates
+    # Loop over the best re-ranked candidates
+    for score, path in re-ranked_candidates:
+        # Print the best re-ranked candidates
         print(round(score, 3), ' '.join([u[0] for u in path]))
 
 :Misc:
@@ -112,6 +112,7 @@ import codecs
 import os
 import re
 import bisect
+from collections import defaultdict
 import networkx as nx
 from networkx.drawing.nx_pydot import write_dot
 
@@ -153,11 +154,11 @@ class TakaheTextProcessor:
         return f"{word_pos_tuple[0]}{self.pos_separator}{word_pos_tuple[1]}"
 
 
-class WordGraph:
+class WordGraph(TakaheTextProcessor):
     """
     The WordGraph class constructs a word graph from the set of sentences given
     as input. The set of sentences is a list of strings, sentences are
-    tokenized and words are POS-tagged (e.g. ``"Saturn/NNP is/VBZ the/DT
+    tokenized and words are part_of_speech-tagged (e.g. ``"Saturn/NNP is/VBZ the/DT
     sixth/JJ planet/NN from/IN the/DT Sun/NNP in/IN the/DT Solar/NNP
     System/NNP"``). Four optional parameters can be specified:
 
@@ -178,19 +179,20 @@ class WordGraph:
         punct_tag="PUNCT",
         pos_separator="/",
     ):
-        self.sentence = list(sentence_list)
-        """ A list of sentences provided by the user. """
+        super().__init__(pos_separator=pos_separator)
 
-        self.length = len(sentence_list)
-        """ The number of sentences given for fusion. """
+        self.all_sentences = list(sentence_list)
+        """ A list of sentences provided by the user. """
 
         self.nb_words = nb_words
         """ The minimal number of words in the compression. """
 
-        self.resources = os.path.dirname(__file__) + "/resources/"
+        self.resources = os.path.join(os.path.dirname(__file__), "resources")
         """ The path of the resources folder. """
 
-        self.stopword_path = self.resources + "stopwords." + lang + ".dat"
+        self.stopword_path = os.path.join(
+            self.resources, f"stopwords.{lang}.dat"
+        )
         """ The path of the stopword list, e.g. stopwords.[lang].dat. """
 
         self.stopwords = self.load_stopwords(self.stopword_path)
@@ -198,10 +200,6 @@ class WordGraph:
 
         self.punct_tag = punct_tag
         """ The stopword tag used in the graph. """
-
-        self.pos_separator = pos_separator
-        """ The character (or string) used to separate a word and its Part of
-            Speech tag """
 
         self.graph = nx.DiGraph()
         """ The directed graph used for fusion. """
@@ -213,7 +211,7 @@ class WordGraph:
         """ The end token in the graph. """
 
         self.sep = "/-/"
-        """ The separator used between a word and its POS in the graph. """
+        """ The separator used between a word and its part_of_speech in the graph. """
 
         self.term_freq = {}
         """ The frequency of a given term. """
@@ -235,7 +233,7 @@ class WordGraph:
             ]
         )
         """
-        The list of verb POS tags required in the compression. At least *one*
+        The list of verb part_of_speech tags required in the compression. At least *one*
         verb must occur in the candidate compressions.
         """
 
@@ -252,43 +250,31 @@ class WordGraph:
         # 3. Build the word graph
         self.build_graph()
 
+    def create_node_id(self, token, part_of_speech):
+        """ """
+        return f"{token.lower()}{self.sep}{part_of_speech}"
+
     def pre_process_sentences(self):
         """
         Pre-process the list of sentences given as input. Split sentences using
-        whitespaces and convert each sentence to a list of (word, POS) tuples.
+        whitespaces and convert each sentence to a list of (word, part_of_speech) tuples.
         """
 
-        processed = []
-        for sentence in self.sentence:
-            # Normalise extra white spaces
-            sentence = re.sub(" +", " ", sentence)
-            sentence = sentence.strip()
-
-            # Tokenize the current sentence in word/POS
-            sentence = sentence.split(" ")
-
-            # Creating an empty container for the cleaned up sentence
-            container = [(self.start, self.start)]
-
-            # Looping over the words
-            for w in sentence:
-                # Splitting word, POS
-                pos_separator_re = re.escape(self.pos_separator)
-                m = re.match("^(.+)" + pos_separator_re + "(.+)$", w)
-
-                # Extract the word information
-                token, POS = m.group(1), m.group(2)
-
-                # Add the token/POS to the sentence container
-                container.append((token.lower(), POS))
-
-            # Add the stop token at the end of the container
-            container.append((self.stop, self.stop))
-
-            # Recopy the container into the current sentence
-            processed.append(container)
-
-        self.sentence = processed
+        # Create a container for the cleaned up sentence, bounded by start
+        # and stop tokens
+        self.all_sentences = [
+            [
+                (self.start, self.start),
+                # Body is words from the normalized, tokenized sentence
+                *[
+                    self.word_pos_to_tuple(w)
+                    for w in re.sub(" +", " ", sentence).strip().split()
+                    if w and w.strip()
+                ],
+                (self.stop, self.stop),
+            ]
+            for sentence in self.all_sentences
+        ]
 
     def build_graph(self):
         """
@@ -322,33 +308,28 @@ class WordGraph:
 
         - Edges are then computed and added between mapped words.
 
-        Each node in the graph is represented as a tuple ('word/POS', id) and
+        Each node in the graph is represented as a tuple ('word/part_of_speech', id) and
         possesses an info list containing (sentence_id, position_in_sentence)
         tuples.
         """
 
         # Iteratively add each sentence in the graph
-        for i in range(self.length):
-            sentence_len = len(self.sentence[i])
-
+        for i, sentence in enumerate(self.all_sentences):
             # Create the mapping container
-            mapping = [0] * sentence_len
+            mapping = [0] * len(sentence)
 
             # -----------------------------------------------------------------
             # 1. non-stopwords for which no candidate exists in the graph or
             #    for which an unambiguous mapping is possible or which occur
             #    more than once in the sentence.
             # -----------------------------------------------------------------
-            for j in range(sentence_len):
-                # Get the word and tag
-                token, POS = self.sentence[i][j]
-
+            for j, (token, part_of_speech) in enumerate(sentence):
                 # If stopword or punctuation mark, continues
                 if token in self.stopwords or re.search(r"(?u)^\W$", token):
                     continue
 
                 # Create the node identifier
-                node = token.lower() + self.sep + POS
+                node = self.create_node_id(token, part_of_speech)
 
                 # Find the number of ambiguous nodes in the graph
                 k = self.ambiguous_nodes(node)
@@ -366,9 +347,9 @@ class WordGraph:
                 # If there is only one matching node in the graph (id is 0)
                 elif k == 1:
                     # Get the sentences id of this node
-                    ids = []
-                    for sid, pos_s in self.graph.nodes[(node, 0)]["info"]:
-                        ids.append(sid)
+                    ids = [
+                        sid for sid, _ in self.graph.nodes[(node, 0)]["info"]
+                    ]
 
                     # Update the node in the graph if not same sentence
                     if i not in ids:
@@ -386,111 +367,102 @@ class WordGraph:
             # 2. non-stopwords for which there are either several possible
             #    candidates in the graph.
             # -----------------------------------------------------------------
-            for j in range(sentence_len):
-                # Get the word and tag
-                token, POS = self.sentence[i][j]
-
+            for j, (token, part_of_speech) in enumerate(sentence):
                 # If stopword or punctuation mark, continues
                 if token in self.stopwords or re.search(r"(?u)^\W$", token):
                     continue
 
                 # If word is not already mapped to a node
-                if not mapping[j]:
-                    # Create the node identifier
-                    node = token.lower() + self.sep + POS
+                if mapping[j]:
+                    continue
 
-                    # Create the neighboring nodes identifiers
-                    prev_token, prev_POS = self.sentence[i][j - 1]
-                    next_token, next_POS = self.sentence[i][j + 1]
-                    prev_node = prev_token.lower() + self.sep + prev_POS
-                    next_node = next_token.lower() + self.sep + next_POS
+                # Create the node identifier
+                node = self.create_node_id(token, part_of_speech)
 
-                    # Find the number of ambiguous nodes in the graph
-                    k = self.ambiguous_nodes(node)
+                # Create the neighboring nodes identifiers
+                prev_token, prev_pos = self.all_sentences[i][j - 1]
+                next_token, next_pos = self.all_sentences[i][j + 1]
+                prev_node = self.create_node_id(prev_token, prev_pos)
+                next_node = self.create_node_id(next_token, next_pos)
 
-                    # Search for the ambiguous node with the larger overlap in
-                    # context or the greater frequency.
-                    ambinode_overlap = []
-                    ambinode_frequency = []
+                # Find the number of ambiguous nodes in the graph
+                k = self.ambiguous_nodes(node)
 
-                    # For each ambiguous node
-                    for l in range(k):
-                        # Get the immediate context words of the nodes
-                        l_context = self.get_directed_context(node, l, "left")
-                        r_context = self.get_directed_context(node, l, "right")
+                # Search for the ambiguous node with the larger overlap in
+                # context or the greater frequency.
+                ambinode_overlap = []
+                ambinode_frequency = []
 
-                        # Compute the (directed) context sum
-                        val = l_context.count(prev_node)
-                        val += r_context.count(next_node)
+                # For each ambiguous node
+                for l in range(k):
+                    # Get the immediate context words of the nodes
+                    l_context = self.get_directed_context(node, l, "left")
+                    r_context = self.get_directed_context(node, l, "right")
 
-                        # Add the count of the overlapping words
-                        ambinode_overlap.append(val)
+                    # Compute the (directed) context sum
+                    val = l_context.count(prev_node) + r_context.count(
+                        next_node
+                    )
 
-                        # Add the frequency of the ambiguous node
-                        ambinode_frequency.append(
-                            len(self.graph.nodes[(node, l)]["info"])
-                        )
+                    # Add the count of the overlapping words
+                    ambinode_overlap.append(val)
 
-                    # Search for the best candidate while avoiding a loop
-                    found = False
-                    selected = 0
-                    while not found:
-                        # Select the ambiguous node
-                        selected = (
-                            self.max_index(ambinode_overlap)
-                            if not ambinode_overlap[selected]
-                            else self.max_index(ambinode_frequency)
-                        )
+                    # Add the frequency of the ambiguous node
+                    ambinode_frequency.append(
+                        len(self.graph.nodes[(node, l)]["info"])
+                    )
 
-                        # Get the sentences id of this node
-                        ids = [
-                            sid
-                            for sid, p in self.graph.nodes[(node, selected)][
-                                "info"
-                            ]
-                        ]
+                # Search for the best candidate while avoiding a loop
+                found = False
+                selected = 0
+                while not found and ambinode_overlap:
+                    # Failure condition
+                    if selected is None or selected >= len(ambinode_overlap):
+                        raise Exception()
 
-                        # Test if there is no loop
-                        if i not in ids:
-                            found = True
-                            break
+                    # Select the ambiguous node
+                    selected = (
+                        self.max_index(ambinode_frequency)
+                        if ambinode_overlap[selected]
+                        else self.max_index(ambinode_overlap)
+                    )
 
-                        # Remove the candidate from the lists
-                        else:
-                            del ambinode_overlap[selected]
-                            del ambinode_frequency[selected]
+                    # Get the sentences id of this node
+                    found = all(
+                        sid != i
+                        for sid, _ in self.graph.nodes[(node, selected)]["info"]
+                    )
 
-                        # Avoid endless loops
-                        if not len(ambinode_overlap):
-                            break
-
-                    # Update the node in the graph if not same sentence
+                    # Test if there is no loop
                     if found:
-                        self.graph.nodes[(node, selected)]["info"].append(
-                            (i, j)
-                        )
-                        mapping[j] = (node, selected)
+                        break
 
-                    # Else create new node for redundant word
-                    else:
-                        self.graph.add_node(
-                            (node, k), info=[(i, j)], label=token.lower()
-                        )
-                        mapping[j] = (node, k)
+                    # Remove the candidate from the lists
+                    del ambinode_overlap[selected]
+                    del ambinode_frequency[selected]
+
+                # Update the node in the graph if not same sentence
+                if found:
+                    self.graph.nodes[(node, selected)]["info"].append((i, j))
+                    mapping[j] = (node, selected)
+
+                # Else create new node for redundant word
+                else:
+                    self.graph.add_node(
+                        (node, k), info=[(i, j)], label=token.lower()
+                    )
+                    mapping[j] = (node, k)
 
             # -----------------------------------------------------------------
             # 3. map the stopwords to the nodes
             # -----------------------------------------------------------------
-            for j in range(sentence_len):
-                # Get the word and tag
-                token, POS = self.sentence[i][j]
-
+            for j, (token, part_of_speech) in enumerate(sentence):
                 # If *NOT* stopword, continues
                 if token not in self.stopwords:
                     continue
 
                 # Create the node identifier
-                node = token.lower() + self.sep + POS
+                node = self.create_node_id(token, part_of_speech)
 
                 # Find the number of ambiguous nodes in the graph
                 k = self.ambiguous_nodes(node)
@@ -508,10 +480,10 @@ class WordGraph:
                 # Else find the node with overlap in context or create one
                 else:
                     # Create the neighboring nodes identifiers
-                    prev_token, prev_POS = self.sentence[i][j - 1]
-                    next_token, next_POS = self.sentence[i][j + 1]
-                    prev_node = prev_token.lower() + self.sep + prev_POS
-                    next_node = next_token.lower() + self.sep + next_POS
+                    prev_token, prev_pos = self.all_sentences[i][j - 1]
+                    next_token, next_pos = self.all_sentences[i][j + 1]
+                    prev_node = self.create_node_id(prev_token, prev_pos)
+                    next_node = self.create_node_id(next_token, next_pos)
 
                     ambinode_overlap = []
 
@@ -527,8 +499,9 @@ class WordGraph:
                         )
 
                         # Compute the (directed) context sum
-                        val = l_context.count(prev_node)
-                        val += r_context.count(next_node)
+                        val = l_context.count(prev_node) + r_context.count(
+                            next_node
+                        )
 
                         # Add the count of the overlapping words
                         ambinode_overlap.append(val)
@@ -537,12 +510,10 @@ class WordGraph:
                     selected = self.max_index(ambinode_overlap)
 
                     # Get the sentences id of the best candidate node
-                    ids = [
+                    ids = set(
                         sid
-                        for sid, pos_s in self.graph.nodes[(node, selected)][
-                            "info"
-                        ]
-                    ]
+                        for sid, _ in self.graph.nodes[(node, selected)]["info"]
+                    )
 
                     # Update the node in the graph if not same sentence and
                     # there is at least one overlap in context
@@ -568,16 +539,13 @@ class WordGraph:
             # ------------------------------------------------------------------
             # 4. Finally, map the punctuation marks to the nodes
             # ------------------------------------------------------------------
-            for j in range(sentence_len):
-                # Get the word and tag
-                token, POS = self.sentence[i][j]
-
+            for j, (token, part_of_speech) in enumerate(sentence):
                 # If *NOT* punctuation mark, continues
                 if not re.search(r"(?u)^\W$", token):
                     continue
 
                 # Create the node identifier
-                node = token.lower() + self.sep + POS
+                node = self.create_node_id(token, part_of_speech)
 
                 # Find the number of ambiguous nodes in the graph
                 k = self.ambiguous_nodes(node)
@@ -595,10 +563,10 @@ class WordGraph:
                 # Else find the node with overlap in context or create one
                 else:
                     # Create the neighboring nodes identifiers
-                    prev_token, prev_POS = self.sentence[i][j - 1]
-                    next_token, next_POS = self.sentence[i][j + 1]
-                    prev_node = prev_token.lower() + self.sep + prev_POS
-                    next_node = next_token.lower() + self.sep + next_POS
+                    prev_token, prev_pos = self.all_sentences[i][j - 1]
+                    next_token, next_pos = self.all_sentences[i][j + 1]
+                    prev_node = self.create_node_id(prev_token, prev_pos)
+                    next_node = self.create_node_id(next_token, next_pos)
 
                     ambinode_overlap = []
 
@@ -609,8 +577,9 @@ class WordGraph:
                         r_context = self.get_directed_context(node, l, "right")
 
                         # Compute the (directed) context sum
-                        val = l_context.count(prev_node)
-                        val += r_context.count(next_node)
+                        val = l_context.count(prev_node) + r_context.count(
+                            next_node
+                        )
 
                         # Add the count of the overlapping words
                         ambinode_overlap.append(val)
@@ -619,16 +588,14 @@ class WordGraph:
                     selected = self.max_index(ambinode_overlap)
 
                     # Get the sentences id of the best candidate node
-                    ids = [
+                    sentence_ids = set(
                         sid
-                        for sid, pos_s in self.graph.nodes[(node, selected)][
-                            "info"
-                        ]
-                    ]
+                        for sid, _ in self.graph.nodes[(node, selected)]["info"]
+                    )
 
                     # Update the node in the graph if not same sentence and
                     # there is at least one overlap in context
-                    if i not in ids and ambinode_overlap[selected] > 1:
+                    if i not in sentence_ids and ambinode_overlap[selected] > 1:
                         # Update the node in the graph
                         self.graph.nodes[(node, selected)]["info"].append(
                             (i, j)
@@ -664,19 +631,19 @@ class WordGraph:
         (ambiguous) nodes in the graph.
         """
         k = 0
-        while self.graph.has_node((node, k)):
+        while (node, k) in self.graph:
             k += 1
         return k
 
-    def get_directed_context(self, node, k, dir="all", non_pos=False):
+    def get_directed_context(self, node, k, direction="all", non_pos=False):
         """
-        Returns the directed context of a given node, i.e. a list of word/POS
+        Returns the directed context of a given node, i.e. a list of word/part_of_speech
         of the left or right neighboring nodes in the graph. The function takes
         four parameters:
 
-        - node is the word/POS tuple
+        - node is the word/part_of_speech tuple
         - k is the node identifier used when multiple nodes refer to the same
-          word/POS (e.g. k=0 for (the/DET, 0), k=1 for (the/DET, 1), etc.)
+          word/part_of_speech (e.g. k=0 for (the/DET, 0), k=1 for (the/DET, 1), etc.)
         - dir is the parameter that controls the directed context calculation,
           it can be set to left, right or all (default)
         - non_pos is a boolean allowing to remove stopwords from the context
@@ -689,37 +656,34 @@ class WordGraph:
 
         # For all the sentence/position tuples
         for sid, off in self.graph.nodes[(node, k)]["info"]:
-            prev = (
-                self.sentence[sid][off - 1][0].lower()
-                + self.sep
-                + self.sentence[sid][off - 1][1]
+            prev_entry = self.create_node_id(
+                self.all_sentences[sid][off - 1][0],
+                self.all_sentences[sid][off - 1][1],
             )
 
-            next = (
-                self.sentence[sid][off + 1][0].lower()
-                + self.sep
-                + self.sentence[sid][off + 1][1]
+            next_entry = self.create_node_id(
+                self.all_sentences[sid][off + 1][0],
+                self.all_sentences[sid][off + 1][1],
             )
 
             if non_pos:
-                if self.sentence[sid][off - 1][0] not in self.stopwords:
-                    l_context.append(prev)
-                if self.sentence[sid][off + 1][0] not in self.stopwords:
-                    r_context.append(next)
+                if self.all_sentences[sid][off - 1][0] not in self.stopwords:
+                    l_context.append(prev_entry)
+                if self.all_sentences[sid][off + 1][0] not in self.stopwords:
+                    r_context.append(next_entry)
             else:
-                l_context.append(prev)
-                r_context.append(next)
+                l_context.append(prev_entry)
+                r_context.append(next_entry)
 
         # Returns the left (previous) context
-        if dir == "left":
+        if direction == "left":
             return l_context
         # Returns the right (next) context
-        elif dir == "right":
+        if direction == "right":
             return r_context
+
         # Returns the whole context
-        else:
-            l_context.extend(r_context)
-            return l_context
+        return [*l_context, *r_context]
 
     def get_edge_weight(self, node1, node2):
         """
@@ -730,7 +694,7 @@ class WordGraph:
         - B = Sum (s in S) 1 / diff(s, i, j)
         - C = freq(i) * freq(j)
 
-        A node is a tuple of ('word/POS', unique_id).
+        A node is a tuple of ('word/part_of_speech', unique_id).
         """
 
         # Get the list of (sentence_id, pos_in_sentence) for node1
@@ -751,7 +715,7 @@ class WordGraph:
         diff = []
 
         # For each sentence of the cluster (for s in S)
-        for s in range(self.length):
+        for s in range(len(self.all_sentences)):
             # Compute diff(s, i, j) which is calculated as
             # pos(s, i) - pos(s, j) if pos(s, i) < pos(s, j)
             # O otherwise
@@ -759,45 +723,35 @@ class WordGraph:
             # Get the positions of i and j in s, named pos(s, i) and pos(s, j)
             # As a word can appear at multiple positions in a sentence, a list
             # of positions is used
-            pos_i_in_s = []
-            pos_j_in_s = []
-
-            # For each (sentence_id, pos_in_sentence) of node1
-            for sentence_id, pos_in_sentence in info1:
-                # If the sentence_id is s
-                if sentence_id == s:
-                    # Add the position in s
-                    pos_i_in_s.append(pos_in_sentence)
-
-            # For each (sentence_id, pos_in_sentence) of node2
-            for sentence_id, pos_in_sentence in info2:
-                # If the sentence_id is s
-                if sentence_id == s:
-                    # Add the position in s
-                    pos_j_in_s.append(pos_in_sentence)
+            pos_i_in_s = [
+                pos_in_sentence
+                for sentence_id, pos_in_sentence in info1
+                if sentence_id == s
+            ]
+            pos_j_in_s = [
+                pos_in_sentence
+                for sentence_id, pos_in_sentence in info2
+                if sentence_id == s
+            ]
 
             # Container for all the diff(s, i, j) for i and j
-            all_diff_pos_i_j = []
-
-            # Loop over all the i, j couples
-            for x in range(len(pos_i_in_s)):
-                for y in range(len(pos_j_in_s)):
-                    diff_i_j = pos_i_in_s[x] - pos_j_in_s[y]
+            min_diff = None
+            for pos_i in pos_i_in_s:
+                for pos_j in pos_j_in_s:
+                    curr_diff = pos_i - pos_j
                     # Test if word i appears *BEFORE* word j in s
-                    if diff_i_j < 0:
-                        all_diff_pos_i_j.append(-1.0 * diff_i_j)
+                    if curr_diff < 0:
+                        min_diff = (
+                            min(-curr_diff, min_diff)
+                            if min_diff
+                            else -curr_diff
+                        )
 
-            # Add the mininum distance to diff (i.e. in case of multiple
-            # occurrencies of i or/and j in sentence s), 0 otherwise.
-            if len(all_diff_pos_i_j):
-                diff.append(1.0 / min(all_diff_pos_i_j))
-            else:
-                diff.append(0.0)
+            # Add the minium distance to diff (i.e. in case of multiple
+            # occurrences of i or/and j in sentence s), 0 otherwise.
+            diff.append(1.0 / min_diff if min_diff else 0.0)
 
-        weight1 = freq1
-        weight2 = freq2
-
-        return ((freq1 + freq2) / sum(diff)) / (weight1 * weight2)
+        return ((freq1 + freq2) / sum(diff)) / (freq1 * freq2)
 
     def k_shortest_paths(self, start, end, k=10):
         """
@@ -807,30 +761,27 @@ class WordGraph:
         """
 
         # Initialize the list of shortest paths
-        kshortestpaths = []
+        k_shortest_paths = []
 
         # Initializing the label container
-        orderedX = []
-        orderedX.append((0, start, 0))
+        orderedX = [(0, start, 0)]
 
         # Initializing the path container
-        paths = {}
-        paths[(0, start, 0)] = [start]
+        paths = {(0, start, 0): [start]}
 
         # Initialize the visited container
-        visited = {}
-        visited[start] = 0
+        visited = defaultdict(float, {start: 0})
 
         # Initialize the sentence container that will be used to remove
-        # duplicate sentences passing throught different nodes
+        # duplicate sentences passing through different nodes
         sentence_container = {}
 
         # While the number of shortest paths isn't reached or all paths
         # explored
-        while len(kshortestpaths) < k and len(orderedX):
+        while len(k_shortest_paths) < k and orderedX:
             # Searching for the shortest distance in orderedX
             shortest = orderedX.pop(0)
-            shortestpath = paths[shortest]
+            shortest_path = paths[shortest]
 
             # Removing the shortest node from X and paths
             del paths[shortest]
@@ -838,7 +789,7 @@ class WordGraph:
             # Iterating over the accessible nodes
             for node in self.graph.neighbors(shortest[1]):
                 # To avoid cycles
-                if node in shortestpath:
+                if node in shortest_path:
                     continue
 
                 # Compute the weight to node
@@ -846,7 +797,7 @@ class WordGraph:
 
                 # If found the end, adds to k-shortest paths
                 if node == end:
-                    # 1. Check if path contains at least one werb
+                    # 1. Check if path contains at least one verb
                     # 2. Check the length of the shortest path, without
                     #    considering punctuation marks and starting node (-1 in
                     #    the range loop, because nodes are reversed)
@@ -859,8 +810,8 @@ class WordGraph:
                     quotation_mark_number = 0
                     raw_sentence = ""
 
-                    for i in range(len(shortestpath) - 1):
-                        word, tag = shortestpath[i][0].split(self.sep)
+                    for i in range(len(shortest_path) - 1):
+                        word, tag = shortest_path[i][0].split(self.sep)
                         # 1.
                         if tag in self.verbs:
                             nb_verbs += 1
@@ -886,38 +837,32 @@ class WordGraph:
                         and length >= self.nb_words
                         and paired_parentheses == 0
                         and (quotation_mark_number % 2) == 0
-                        and not (raw_sentence in sentence_container)
+                        and raw_sentence not in sentence_container
                     ):
-                        path = [node]
-                        path.extend(shortestpath)
+                        path = [node, *shortest_path]
                         path.reverse()
-                        weight = float(w)
-                        kshortestpaths.append((path, weight))
+                        k_shortest_paths.append((path, w))
                         sentence_container[raw_sentence] = 1
                 else:
                     # test if node has already been visited
-                    if node in visited:
-                        visited[node] += 1
-                    else:
-                        visited[node] = 0
-                    id = visited[node]
+                    visited[node] += 1
+                    v_id = visited[node]
 
                     # Add the node to orderedX
-                    bisect.insort(orderedX, (w, node, id))
+                    bisect.insort(orderedX, (w, node, v_id))
 
                     # Add the node to paths
-                    paths[(w, node, id)] = [node]
-                    paths[(w, node, id)].extend(shortestpath)
+                    paths[(w, node, v_id)] = [node, *shortest_path]
 
         # Returns the list of shortest paths
-        return kshortestpaths
+        return k_shortest_paths
 
     def get_compression(self, nb_candidates=50):
         """
         Searches all possible paths from **start** to **end** in the word
         graph, removes paths containing no verb or shorter than *n* words.
         Returns an ordered list (smaller first) of nb (default value is 50)
-        (cummulative score, path) tuples. The score is not normalized with the
+        (cumulative score, path) tuples. The score is not normalized with the
         sentence length.
         """
 
@@ -929,22 +874,21 @@ class WordGraph:
         )
 
         # Initialize the fusion container
-        fusions = []
-
-        # Test if there are some paths
-        if len(self.paths):
-            # For nb candidates
-            for i in range(min(nb_candidates, len(self.paths))):
-                nodes = self.paths[i][0]
-                sentence = []
-
-                for j in range(1, len(nodes) - 1):
-                    word, tag = nodes[j][0].split(self.sep)
-                    sentence.append((word, tag))
-
-                bisect.insort(fusions, (self.paths[i][1], sentence))
-
-        return fusions
+        return sorted(
+            [
+                (
+                    curr_path[1],
+                    [
+                        # Sentence is just a list of (word, tag) pairs
+                        curr_node[0].split(self.sep)
+                        for curr_node in curr_path[0][1 : len(curr_path[0]) - 1]
+                    ],
+                )
+                for curr_path in self.paths[
+                    : min(nb_candidates, len(self.paths))
+                ]
+            ]
+        )
 
     def max_index(self, l):
         """Returns the index of the maximum value of a given list."""
@@ -952,7 +896,7 @@ class WordGraph:
         ll = len(l)
         if ll < 0:
             return None
-        elif ll == 1:
+        if ll == 1:
             return 0
         max_val = l[0]
         max_ind = 0
@@ -970,42 +914,29 @@ class WordGraph:
         - term frequency (self.term_freq)
         """
 
-        # Structure for containing the list of sentences in which a term occurs
-        terms = {}
+        # Maps a term -> number of occurrences
+        term_freq = defaultdict(int)
+        for sentence in self.all_sentences:
+            for token, part_of_speech in sentence:
+                node = self.create_node_id(token, part_of_speech)
+                term_freq[node] += 1
 
-        # Loop over the sentences
-        for i in range(self.length):
-            # For each tuple (token, POS) of sentence i
-            for token, POS in self.sentence[i]:
-                # generate the word/POS token
-                node = token.lower() + self.sep + POS
-
-                # Add the token to the terms list
-                if node in terms:
-                    terms[node].append(i)
-                else:
-                    terms[node] = [i]
-
-        for w in terms:
+        for w, freq in term_freq.items():
             # Compute the term frequency
-            self.term_freq[w] = len(terms[w])
+            self.term_freq[w] = freq
 
     def load_stopwords(self, path):
         """
         This function loads a stopword list from the *path* file and returns a
-        set of words. Lines begining by '#' are ignored.
+        set of words. Lines beginning by '#' are ignored.
         """
 
-        # Set of stopwords
-        stopwords = set([])
-
-        # For each line in the file
-        for line in codecs.open(path, "r", "utf-8"):
-            if not re.search("^#", line) and len(line.strip()):
-                stopwords.add(line.strip().lower())
-
-        # Return the set of stopwords
-        return stopwords
+        # # Return the set of stopwords from file
+        return set(
+            line.strip().lower()
+            for line in codecs.open(path, "r", "utf-8")
+            if not re.search("^#", line) and len(line.strip())
+        )
 
     def write_dot(self, dotfile):
         """Outputs the word graph in dot format in the specified file."""
